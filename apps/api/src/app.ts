@@ -6,9 +6,12 @@ import rateLimit from "@fastify/rate-limit";
 import { getEnv } from "./config/env.js";
 import { dbPlugin } from "./lib/db-plugin.js";
 import { setupErrorHandler } from "./lib/error-handler.js";
+import { stripePlugin } from "./lib/stripe-plugin.js";
 import { authPlugin } from "./modules/auth/auth.plugin.js";
 import { catalogPlugin } from "./modules/catalog/catalog.plugin.js";
 import { ordersPlugin } from "./modules/orders/orders.plugin.js";
+import { paymentsPlugin } from "./modules/payments/payments.plugin.js";
+import { webhookRoutes } from "./modules/payments/webhook.routes.js";
 import { reportingPlugin } from "./modules/reporting/reporting.plugin.js";
 
 export async function buildApp() {
@@ -38,8 +41,9 @@ export async function buildApp() {
     timeWindow: "1 minute",
   });
 
-  // Database
+  // Database & Stripe
   await app.register(dbPlugin);
+  await app.register(stripePlugin);
 
   // Health check
   app.get("/health", async () => ({
@@ -52,7 +56,11 @@ export async function buildApp() {
   await app.register(authPlugin, { prefix: "/api/v1/auth" });
   await app.register(catalogPlugin, { prefix: "/api/v1" });
   await app.register(ordersPlugin, { prefix: "/api/v1" });
+  await app.register(paymentsPlugin, { prefix: "/api/v1/payments" });
   await app.register(reportingPlugin, { prefix: "/api/v1" });
+
+  // Webhook routes — NO auth middleware (verified via Stripe signature)
+  await app.register(webhookRoutes, { prefix: "/webhooks" });
 
   // Future modules:
   // await app.register(syncPlugin, { prefix: "/api/v1/sync" });

@@ -127,18 +127,10 @@ describe("Recipe cost calculations", () => {
       { quantity: 50, costPerUnit: 3, costPrecision: 3 },
     ];
 
-    const cost = calculateRecipeCost(ingredients);
-    // 150*8/1000 + 1*25/100 + 30*12/1000 + 50*3/1000
-    // = 1.2 + 0.25 + 0.36 + 0.15 = 1.96 → rounds to 2p
-    // Wait — these are in pence already. Let me recalculate.
-    // Actually: costPerUnit is in pence. So:
-    // 150 * 8/1000 = 1.2 pence
-    // 1 * 25/100 = 0.25 pence
-    // 30 * 12/1000 = 0.36 pence
-    // 50 * 3/1000 = 0.15 pence
-    // Total = 1.96 pence → rounds to 2p
-    // That's wrong for real prices. Let me re-think.
-    //
+    // With fractional-pence precision, this gives ~2p total
+    // (useful for validating the formula works, but real recipes use costPrecision=0)
+    expect(calculateRecipeCost(ingredients)).toBe(2);
+
     // Better model: costPerUnit in pence, precision says how to interpret.
     // Beef: £8/kg = 800p/kg. For per-gram: 800/1000 = 0.8p/g
     //   Store as costPerUnit=800, costPrecision=2 (pence per kg), then quantity=0.15 (kg)

@@ -1,0 +1,21 @@
+{
+  "name": "commerce-os",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Commerce Operating System for physical businesses",
+  "packageManager": "pnpm@10.29.1",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "scripts": {
+    "dev": "turbo dev",
+    "build": "turbo build",
+    "lint": "turbo lint",
+    "test": "turbo test",
+    "db:generate": "pnpm --filter @commerce-os/db generate",
+    "db:migrate": "pnpm --filter @commerce-os/db migrate",
+    "db:push": "pnpm --filter @commerce-os/db push",
+    "db:studio": "pnpm --filter @commerce-os/db studio",
+    "clean": "turbo clean && rm -rf node_modules"
+  }
+}

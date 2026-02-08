@@ -5,8 +5,11 @@ import sensible from "@fastify/sensible";
 import rateLimit from "@fastify/rate-limit";
 import { getEnv } from "./config/env.js";
 import { dbPlugin } from "./lib/db-plugin.js";
+import { setupErrorHandler } from "./lib/error-handler.js";
 import { authPlugin } from "./modules/auth/auth.plugin.js";
 import { catalogPlugin } from "./modules/catalog/catalog.plugin.js";
+import { ordersPlugin } from "./modules/orders/orders.plugin.js";
+import { reportingPlugin } from "./modules/reporting/reporting.plugin.js";
 
 export async function buildApp() {
   const env = getEnv();
@@ -22,6 +25,9 @@ export async function buildApp() {
       }),
     },
   });
+
+  // Global error handler (Zod validation, HTTP errors, unexpected errors)
+  setupErrorHandler(app);
 
   // Core plugins
   await app.register(cors, { origin: env.CORS_ORIGIN, credentials: true });
@@ -45,12 +51,11 @@ export async function buildApp() {
   // API modules — each is a self-contained Fastify plugin
   await app.register(authPlugin, { prefix: "/api/v1/auth" });
   await app.register(catalogPlugin, { prefix: "/api/v1" });
+  await app.register(ordersPlugin, { prefix: "/api/v1" });
+  await app.register(reportingPlugin, { prefix: "/api/v1" });
 
-  // Future modules (uncomment as built):
-  // await app.register(ordersPlugin, { prefix: "/api/v1" });
+  // Future modules:
   // await app.register(syncPlugin, { prefix: "/api/v1/sync" });
-  // await app.register(paymentsPlugin, { prefix: "/api/v1/payments" });
-  // await app.register(reportingPlugin, { prefix: "/api/v1/reports" });
 
   return app;
 }

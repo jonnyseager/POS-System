@@ -1,0 +1,33 @@
+{
+  "expo": {
+    "name": "Commerce OS POS",
+    "slug": "commerce-os-pos",
+    "version": "0.1.0",
+    "scheme": "commerce-pos",
+    "orientation": "landscape",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "splash": {
+      "backgroundColor": "#1e293b"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.commerceos.pos",
+      "requireFullScreen": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#1e293b"
+      },
+      "package": "com.commerceos.pos"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}

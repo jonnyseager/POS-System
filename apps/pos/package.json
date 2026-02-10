@@ -11,6 +11,7 @@
     "lint": "eslint ."
   },
   "dependencies": {
+    "@expo/metro-runtime": "~6.1.0",
     "@op-engineering/op-sqlite": "^11.2.0",
     "@stripe/stripe-terminal-react-native": "^0.0.1-beta.18",
     "expo": "^54.0.0",

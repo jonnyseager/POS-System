@@ -27,6 +27,17 @@ export const syncConflicts = pgTable("sync_conflicts", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+export const recordColumnHlcs = pgTable("record_column_hlcs", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: uuid("tenant_id").notNull().references(() => tenants.id),
+  tableName: text("table_name").notNull(),
+  recordId: uuid("record_id").notNull(),
+  columnHlcs: jsonb("column_hlcs").notNull().default({}),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  uniqueIndex("record_column_hlcs_unique").on(table.tenantId, table.tableName, table.recordId),
+]);
+
 export const events = pgTable("events", {
   id: uuid("id").primaryKey().defaultRandom(),
   tenantId: uuid("tenant_id").notNull().references(() => tenants.id),

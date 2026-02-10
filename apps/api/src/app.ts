@@ -13,6 +13,7 @@ import { ordersPlugin } from "./modules/orders/orders.plugin.js";
 import { paymentsPlugin } from "./modules/payments/payments.plugin.js";
 import { webhookRoutes } from "./modules/payments/webhook.routes.js";
 import { reportingPlugin } from "./modules/reporting/reporting.plugin.js";
+import { syncPlugin } from "./modules/sync/sync.plugin.js";
 
 export async function buildApp() {
   const env = getEnv();
@@ -59,11 +60,11 @@ export async function buildApp() {
   await app.register(paymentsPlugin, { prefix: "/api/v1/payments" });
   await app.register(reportingPlugin, { prefix: "/api/v1" });
 
+  // Sync — offline-first push/pull protocol
+  await app.register(syncPlugin, { prefix: "/api/v1/sync" });
+
   // Webhook routes — NO auth middleware (verified via Stripe signature)
   await app.register(webhookRoutes, { prefix: "/webhooks" });
-
-  // Future modules:
-  // await app.register(syncPlugin, { prefix: "/api/v1/sync" });
 
   return app;
 }

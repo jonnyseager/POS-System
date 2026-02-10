@@ -2,6 +2,12 @@ import * as SecureStore from "expo-secure-store";
 
 const API_URL = "http://localhost:3001";
 
+function buildQuery(params: Record<string, string>): string {
+  return Object.entries(params)
+    .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
+    .join("&");
+}
+
 let cachedToken: string | null = null;
 
 export async function getToken(): Promise<string | null> {
@@ -196,12 +202,13 @@ export function pullSync(
   tables?: string,
   limit?: number,
 ) {
-  const params = new URLSearchParams({ sinceHlc });
-  if (tables) params.set("tables", tables);
-  if (limit) params.set("limit", String(limit));
+  const queryParts: Record<string, string> = { sinceHlc };
+  if (tables) queryParts["tables"] = tables;
+  if (limit) queryParts["limit"] = String(limit);
+  const qs = buildQuery(queryParts);
   return request<SyncPullResponse>(
     "GET",
-    `/api/v1/sync/pull?${params.toString()}`,
+    `/api/v1/sync/pull?${qs}`,
     undefined,
     { "X-Device-Id": deviceId },
   );
@@ -277,12 +284,12 @@ export function getOrders(params?: {
   limit?: number;
   offset?: number;
 }) {
-  const search = new URLSearchParams();
-  if (params?.shiftId) search.set("shiftId", params.shiftId);
-  if (params?.status) search.set("status", params.status);
-  if (params?.limit) search.set("limit", String(params.limit));
-  if (params?.offset) search.set("offset", String(params.offset));
-  const qs = search.toString();
+  const queryParts: Record<string, string> = {};
+  if (params?.shiftId) queryParts["shiftId"] = params.shiftId;
+  if (params?.status) queryParts["status"] = params.status;
+  if (params?.limit) queryParts["limit"] = String(params.limit);
+  if (params?.offset) queryParts["offset"] = String(params.offset);
+  const qs = buildQuery(queryParts);
   return request<{ orders: OrderResponse[]; total: number }>(
     "GET",
     `/api/v1/orders${qs ? `?${qs}` : ""}`,
@@ -333,10 +340,10 @@ export function openShift(data: { locationId: string; openingCash?: number }) {
 }
 
 export function getShifts(params?: { locationId?: string; status?: string }) {
-  const search = new URLSearchParams();
-  if (params?.locationId) search.set("locationId", params.locationId);
-  if (params?.status) search.set("status", params.status);
-  const qs = search.toString();
+  const queryParts: Record<string, string> = {};
+  if (params?.locationId) queryParts["locationId"] = params.locationId;
+  if (params?.status) queryParts["status"] = params.status;
+  const qs = buildQuery(queryParts);
   return request<ShiftResponse[]>(
     "GET",
     `/api/v1/shifts${qs ? `?${qs}` : ""}`,

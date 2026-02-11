@@ -1,5 +1,4 @@
 import { v4 as uuidv4 } from "uuid";
-import type { Scalar } from "@op-engineering/op-sqlite";
 import { getDatabase } from "./database";
 import { hlcToString, now as hlcNow } from "../lib/hlc";
 
@@ -106,67 +105,63 @@ export interface LocalShift {
 
 export function getCategories(): LocalCategory[] {
   const db = getDatabase();
-  const result = db.executeSync(
+  return db.getAllSync<LocalCategory>(
     "SELECT * FROM categories WHERE is_active = 1 AND deleted_at IS NULL ORDER BY display_order, name",
   );
-  return (result.rows ?? []) as unknown as LocalCategory[];
 }
 
 // ── Menu item queries ──
 
 export function getMenuItems(): LocalMenuItem[] {
   const db = getDatabase();
-  const result = db.executeSync(
+  return db.getAllSync<LocalMenuItem>(
     "SELECT * FROM menu_items WHERE is_active = 1 AND deleted_at IS NULL ORDER BY display_order, name",
   );
-  return (result.rows ?? []) as unknown as LocalMenuItem[];
 }
 
 export function getMenuItemsByCategory(
   categoryId: string,
 ): LocalMenuItem[] {
   const db = getDatabase();
-  const result = db.executeSync(
+  return db.getAllSync<LocalMenuItem>(
     "SELECT * FROM menu_items WHERE category_id = ? AND is_active = 1 AND deleted_at IS NULL ORDER BY display_order, name",
     [categoryId],
   );
-  return (result.rows ?? []) as unknown as LocalMenuItem[];
 }
 
 export function getMenuItem(id: string): LocalMenuItem | null {
   const db = getDatabase();
-  const result = db.executeSync("SELECT * FROM menu_items WHERE id = ?", [id]);
-  const rows = (result.rows ?? []) as unknown as LocalMenuItem[];
-  return rows[0] ?? null;
+  return db.getFirstSync<LocalMenuItem>(
+    "SELECT * FROM menu_items WHERE id = ?",
+    [id],
+  );
 }
 
 // ── Tax rate queries ──
 
 export function getTaxRates(): LocalTaxRate[] {
   const db = getDatabase();
-  const result = db.executeSync(
+  return db.getAllSync<LocalTaxRate>(
     "SELECT * FROM tax_rates WHERE is_active = 1 ORDER BY name",
   );
-  return (result.rows ?? []) as unknown as LocalTaxRate[];
 }
 
 export function getDefaultTaxRate(): LocalTaxRate | null {
   const db = getDatabase();
-  const result = db.executeSync(
+  return db.getFirstSync<LocalTaxRate>(
     "SELECT * FROM tax_rates WHERE is_default = 1 AND is_active = 1 LIMIT 1",
   );
-  const rows = (result.rows ?? []) as unknown as LocalTaxRate[];
-  return rows[0] ?? null;
 }
 
 // ── Order queries ──
 
 export function getNextOrderNumber(): number {
   const db = getDatabase();
-  const result = db.executeSync("SELECT next_number FROM order_sequence WHERE id = 1");
-  const rows = (result.rows ?? []) as unknown as Array<{ next_number: number }>;
-  const num = rows[0]?.next_number ?? 1;
-  db.executeSync("UPDATE order_sequence SET next_number = ? WHERE id = 1", [
+  const row = db.getFirstSync<{ next_number: number }>(
+    "SELECT next_number FROM order_sequence WHERE id = 1",
+  );
+  const num = row?.next_number ?? 1;
+  db.runSync("UPDATE order_sequence SET next_number = ? WHERE id = 1", [
     num + 1,
   ]);
   return num;
@@ -258,7 +253,7 @@ export function createLocalOrder(params: CreateOrderParams): LocalOrder {
   const total = subtotal + taxTotal - discountTotal;
 
   // Insert order
-  db.executeSync(
+  db.runSync(
     `INSERT INTO orders (
       id, tenant_id, location_id, device_id, shift_id, user_id,
       order_number, status, order_type, subtotal, tax_total, discount_total,
@@ -290,7 +285,7 @@ export function createLocalOrder(params: CreateOrderParams): LocalOrder {
 
   // Insert items
   for (const item of itemRows) {
-    db.executeSync(
+    db.runSync(
       `INSERT INTO order_items (
         id, tenant_id, order_id, menu_item_id, name, quantity,
         unit_price, unit_cost, tax_rate, tax_amount, subtotal, total, notes, hlc_timestamp
@@ -345,39 +340,39 @@ export function getLocalOrders(
   limit = 50,
 ): LocalOrder[] {
   const db = getDatabase();
-  let sql = "SELECT * FROM orders";
-  const args: Scalar[] = [];
   if (shiftId) {
-    sql += " WHERE shift_id = ?";
-    args.push(shiftId);
+    return db.getAllSync<LocalOrder>(
+      "SELECT * FROM orders WHERE shift_id = ? ORDER BY created_at DESC LIMIT ?",
+      [shiftId, limit],
+    );
   }
-  sql += " ORDER BY created_at DESC LIMIT ?";
-  args.push(limit);
-  const result = db.executeSync(sql, args);
-  return (result.rows ?? []) as unknown as LocalOrder[];
+  return db.getAllSync<LocalOrder>(
+    "SELECT * FROM orders ORDER BY created_at DESC LIMIT ?",
+    [limit],
+  );
 }
 
 export function getLocalOrder(id: string): LocalOrder | null {
   const db = getDatabase();
-  const result = db.executeSync("SELECT * FROM orders WHERE id = ?", [id]);
-  const rows = (result.rows ?? []) as unknown as LocalOrder[];
-  return rows[0] ?? null;
+  return db.getFirstSync<LocalOrder>(
+    "SELECT * FROM orders WHERE id = ?",
+    [id],
+  );
 }
 
 export function getOrderItems(orderId: string): LocalOrderItem[] {
   const db = getDatabase();
-  const result = db.executeSync(
+  return db.getAllSync<LocalOrderItem>(
     "SELECT * FROM order_items WHERE order_id = ? ORDER BY rowid",
     [orderId],
   );
-  return (result.rows ?? []) as unknown as LocalOrderItem[];
 }
 
 export function completeOrder(orderId: string): void {
   const db = getDatabase();
   const now = new Date().toISOString();
   const hlc = hlcToString(hlcNow());
-  db.executeSync(
+  db.runSync(
     "UPDATE orders SET status = 'completed', completed_at = ?, hlc_timestamp = ? WHERE id = ?",
     [now, hlc, orderId],
   );
@@ -387,7 +382,7 @@ export function voidLocalOrder(orderId: string, reason: string, userId: string):
   const db = getDatabase();
   const now = new Date().toISOString();
   const hlc = hlcToString(hlcNow());
-  db.executeSync(
+  db.runSync(
     "UPDATE orders SET status = 'voided', voided_at = ?, voided_by = ?, void_reason = ?, hlc_timestamp = ? WHERE id = ?",
     [now, userId, reason, hlc, orderId],
   );
@@ -409,7 +404,7 @@ export function insertPayment(params: {
   const now = new Date().toISOString();
   const hlc = hlcToString(hlcNow());
 
-  db.executeSync(
+  db.runSync(
     `INSERT INTO payments (
       id, tenant_id, order_id, payment_method, amount, tip_amount,
       status, cash_given, change_given, processed_at, hlc_timestamp
@@ -445,32 +440,28 @@ export function insertPayment(params: {
 
 export function getOrderPayments(orderId: string): LocalPayment[] {
   const db = getDatabase();
-  const result = db.executeSync(
+  return db.getAllSync<LocalPayment>(
     "SELECT * FROM payments WHERE order_id = ? ORDER BY processed_at",
     [orderId],
   );
-  return (result.rows ?? []) as unknown as LocalPayment[];
 }
 
 export function getOrderTotalPaid(orderId: string): number {
   const db = getDatabase();
-  const result = db.executeSync(
+  const row = db.getFirstSync<{ total_paid: number }>(
     "SELECT COALESCE(SUM(amount), 0) as total_paid FROM payments WHERE order_id = ? AND status = 'completed'",
     [orderId],
   );
-  const rows = (result.rows ?? []) as unknown as Array<{ total_paid: number }>;
-  return rows[0]?.total_paid ?? 0;
+  return row?.total_paid ?? 0;
 }
 
 // ── Shift queries ──
 
 export function getOpenShift(): LocalShift | null {
   const db = getDatabase();
-  const result = db.executeSync(
+  return db.getFirstSync<LocalShift>(
     "SELECT * FROM shifts WHERE status = 'open' ORDER BY opened_at DESC LIMIT 1",
   );
-  const rows = (result.rows ?? []) as unknown as LocalShift[];
-  return rows[0] ?? null;
 }
 
 export function insertShift(params: {
@@ -484,7 +475,7 @@ export function insertShift(params: {
   const now = new Date().toISOString();
   const hlc = hlcToString(hlcNow());
 
-  db.executeSync(
+  db.runSync(
     `INSERT INTO shifts (
       id, tenant_id, location_id, opened_by, opened_at,
       opening_cash, status, hlc_timestamp
@@ -519,23 +510,24 @@ export function closeLocalShift(
   const hlc = hlcToString(hlcNow());
 
   // Calculate expected cash
-  const cashPayments = db.executeSync(
+  const cashRow = db.getFirstSync<{ cash_total: number }>(
     `SELECT COALESCE(SUM(p.amount), 0) as cash_total
      FROM payments p
      JOIN orders o ON p.order_id = o.id
      WHERE o.shift_id = ? AND p.payment_method = 'cash' AND p.status = 'completed'`,
     [shiftId],
   );
-  const cashRows = (cashPayments.rows ?? []) as unknown as Array<{ cash_total: number }>;
-  const cashTotal = cashRows[0]?.cash_total ?? 0;
+  const cashTotal = cashRow?.cash_total ?? 0;
 
-  const shiftResult = db.executeSync("SELECT opening_cash FROM shifts WHERE id = ?", [shiftId]);
-  const shiftRows = (shiftResult.rows ?? []) as unknown as Array<{ opening_cash: number }>;
-  const openingCash = shiftRows[0]?.opening_cash ?? 0;
+  const shiftRow = db.getFirstSync<{ opening_cash: number }>(
+    "SELECT opening_cash FROM shifts WHERE id = ?",
+    [shiftId],
+  );
+  const openingCash = shiftRow?.opening_cash ?? 0;
 
   const expectedCash = openingCash + cashTotal;
 
-  db.executeSync(
+  db.runSync(
     `UPDATE shifts SET
       status = 'closed', closed_at = ?, closing_cash = ?,
       expected_cash = ?, notes = ?, hlc_timestamp = ?
@@ -554,33 +546,30 @@ export function getShiftSummary(shiftId: string): {
 } {
   const db = getDatabase();
 
-  const orderResult = db.executeSync(
+  const orderRow = db.getFirstSync<{ count: number; revenue: number }>(
     "SELECT COUNT(*) as count, COALESCE(SUM(total), 0) as revenue FROM orders WHERE shift_id = ? AND status != 'voided'",
     [shiftId],
   );
-  const orderRows = (orderResult.rows ?? []) as unknown as Array<{ count: number; revenue: number }>;
 
-  const cashResult = db.executeSync(
+  const cashRow = db.getFirstSync<{ total: number }>(
     `SELECT COALESCE(SUM(p.amount), 0) as total
      FROM payments p JOIN orders o ON p.order_id = o.id
      WHERE o.shift_id = ? AND p.payment_method = 'cash' AND p.status = 'completed'`,
     [shiftId],
   );
-  const cashRows = (cashResult.rows ?? []) as unknown as Array<{ total: number }>;
 
-  const cardResult = db.executeSync(
+  const cardRow = db.getFirstSync<{ total: number }>(
     `SELECT COALESCE(SUM(p.amount), 0) as total
      FROM payments p JOIN orders o ON p.order_id = o.id
      WHERE o.shift_id = ? AND p.payment_method = 'card' AND p.status = 'completed'`,
     [shiftId],
   );
-  const cardRows = (cardResult.rows ?? []) as unknown as Array<{ total: number }>;
 
   return {
-    totalOrders: orderRows[0]?.count ?? 0,
-    totalRevenue: orderRows[0]?.revenue ?? 0,
-    cashTotal: cashRows[0]?.total ?? 0,
-    cardTotal: cardRows[0]?.total ?? 0,
+    totalOrders: orderRow?.count ?? 0,
+    totalRevenue: orderRow?.revenue ?? 0,
+    cashTotal: cashRow?.total ?? 0,
+    cardTotal: cardRow?.total ?? 0,
   };
 }
 
@@ -594,7 +583,7 @@ function logChange(
   hlc: string,
 ): void {
   const db = getDatabase();
-  db.executeSync(
+  db.runSync(
     "INSERT INTO change_log (table_name, record_id, operation, data, hlc) VALUES (?, ?, ?, ?, ?)",
     [tableName, recordId, operation, JSON.stringify(data), hlc],
   );
@@ -612,26 +601,17 @@ export function getPendingChanges(
   column_hlcs: string | null;
 }> {
   const db = getDatabase();
-  const result = db.executeSync(
+  return db.getAllSync(
     "SELECT * FROM change_log WHERE synced = 0 ORDER BY id LIMIT ?",
     [limit],
   );
-  return (result.rows ?? []) as unknown as Array<{
-    id: number;
-    table_name: string;
-    record_id: string;
-    operation: string;
-    data: string;
-    hlc: string;
-    column_hlcs: string | null;
-  }>;
 }
 
 export function markChangesSynced(ids: number[]): void {
   if (ids.length === 0) return;
   const db = getDatabase();
   const placeholders = ids.map(() => "?").join(",");
-  db.executeSync(
+  db.runSync(
     `UPDATE change_log SET synced = 1 WHERE id IN (${placeholders})`,
     ids,
   );
@@ -639,32 +619,29 @@ export function markChangesSynced(ids: number[]): void {
 
 export function getPendingChangeCount(): number {
   const db = getDatabase();
-  const result = db.executeSync(
+  const row = db.getFirstSync<{ count: number }>(
     "SELECT COUNT(*) as count FROM change_log WHERE synced = 0",
   );
-  const rows = (result.rows ?? []) as unknown as Array<{ count: number }>;
-  return rows[0]?.count ?? 0;
+  return row?.count ?? 0;
 }
 
 // ── Sync state ──
 
 export function getSyncWatermark(tableName: string): string {
   const db = getDatabase();
-  const result = db.executeSync(
+  const row = db.getFirstSync<{ last_pulled_hlc: string }>(
     "SELECT last_pulled_hlc FROM sync_state WHERE table_name = ?",
     [tableName],
   );
-  const rows = (result.rows ?? []) as unknown as Array<{ last_pulled_hlc: string }>;
-  return rows[0]?.last_pulled_hlc ?? "0";
+  return row?.last_pulled_hlc ?? "0";
 }
 
 export function getGlobalSyncWatermark(): string {
   const db = getDatabase();
-  const result = db.executeSync(
+  const row = db.getFirstSync<{ min_hlc: string | null }>(
     "SELECT MIN(last_pulled_hlc) as min_hlc FROM sync_state",
   );
-  const rows = (result.rows ?? []) as unknown as Array<{ min_hlc: string | null }>;
-  return rows[0]?.min_hlc ?? "0";
+  return row?.min_hlc ?? "0";
 }
 
 export function updateSyncWatermark(
@@ -672,7 +649,7 @@ export function updateSyncWatermark(
   hlc: string,
 ): void {
   const db = getDatabase();
-  db.executeSync(
+  db.runSync(
     `INSERT INTO sync_state (table_name, last_pulled_hlc, updated_at)
      VALUES (?, ?, datetime('now'))
      ON CONFLICT(table_name) DO UPDATE SET last_pulled_hlc = ?, updated_at = datetime('now')`,
@@ -691,33 +668,32 @@ export function upsertFromSync(
   const db = getDatabase();
 
   // Check if record exists
-  const existing = db.executeSync(
+  const existing = db.getFirstSync<{ hlc_timestamp: string }>(
     `SELECT hlc_timestamp FROM "${tableName}" WHERE id = ?`,
     [recordId],
   );
-  const rows = (existing.rows ?? []) as unknown as Array<{ hlc_timestamp: string }>;
 
-  if (rows.length === 0) {
+  if (!existing) {
     // Insert new record
     const cols = Object.keys(data);
     const placeholders = cols.map(() => "?").join(", ");
     const colNames = cols.map((c) => `"${c}"`).join(", ");
-    db.executeSync(
+    db.runSync(
       `INSERT OR IGNORE INTO "${tableName}" (${colNames}) VALUES (${placeholders})`,
-      cols.map((c) => data[c] as Scalar),
+      cols.map((c) => data[c] as string | number | null),
     );
   } else {
     // LWW: only update if incoming HLC is newer
-    const currentHlc = rows[0]?.hlc_timestamp ?? "0";
+    const currentHlc = existing.hlc_timestamp ?? "0";
     if (BigInt(hlc) > BigInt(currentHlc)) {
       const setClauses = Object.keys(data)
         .filter((k) => k !== "id")
         .map((k) => `"${k}" = ?`);
       const values = Object.keys(data)
         .filter((k) => k !== "id")
-        .map((k) => data[k] as Scalar);
+        .map((k) => data[k] as string | number | null);
       if (setClauses.length > 0) {
-        db.executeSync(
+        db.runSync(
           `UPDATE "${tableName}" SET ${setClauses.join(", ")} WHERE id = ?`,
           [...values, recordId],
         );
@@ -730,17 +706,16 @@ export function upsertFromSync(
 
 export function getDeviceConfig(key: string): string | null {
   const db = getDatabase();
-  const result = db.executeSync(
+  const row = db.getFirstSync<{ value: string }>(
     "SELECT value FROM device_config WHERE key = ?",
     [key],
   );
-  const rows = (result.rows ?? []) as unknown as Array<{ value: string }>;
-  return rows[0]?.value ?? null;
+  return row?.value ?? null;
 }
 
 export function setDeviceConfig(key: string, value: string): void {
   const db = getDatabase();
-  db.executeSync(
+  db.runSync(
     "INSERT OR REPLACE INTO device_config (key, value) VALUES (?, ?)",
     [key, value],
   );

@@ -1,20 +1,20 @@
-import { open, type DB } from "@op-engineering/op-sqlite";
+import * as SQLite from "expo-sqlite";
 
-let db: DB | null = null;
+let db: SQLite.SQLiteDatabase | null = null;
 
-export function getDatabase(): DB {
+export function getDatabase(): SQLite.SQLiteDatabase {
   if (!db) {
-    db = open({ name: "commerce_pos.db" });
-    db.executeSync("PRAGMA journal_mode = WAL;");
-    db.executeSync("PRAGMA foreign_keys = ON;");
+    db = SQLite.openDatabaseSync("commerce_pos.db");
+    db.execSync("PRAGMA journal_mode = WAL;");
+    db.execSync("PRAGMA foreign_keys = ON;");
     createTables(db);
   }
   return db;
 }
 
-function createTables(db: DB): void {
+function createTables(db: SQLite.SQLiteDatabase): void {
   // ── Reference data (cloud → device) ──
-  db.executeSync(`
+  db.execSync(`
     CREATE TABLE IF NOT EXISTS tax_rates (
       id TEXT PRIMARY KEY,
       tenant_id TEXT NOT NULL,
@@ -27,7 +27,7 @@ function createTables(db: DB): void {
   `);
 
   // ── Catalog (LWW sync) ──
-  db.executeSync(`
+  db.execSync(`
     CREATE TABLE IF NOT EXISTS categories (
       id TEXT PRIMARY KEY,
       tenant_id TEXT NOT NULL,
@@ -40,7 +40,7 @@ function createTables(db: DB): void {
     );
   `);
 
-  db.executeSync(`
+  db.execSync(`
     CREATE TABLE IF NOT EXISTS menu_items (
       id TEXT PRIMARY KEY,
       tenant_id TEXT NOT NULL,
@@ -64,7 +64,7 @@ function createTables(db: DB): void {
     );
   `);
 
-  db.executeSync(`
+  db.execSync(`
     CREATE TABLE IF NOT EXISTS modifier_groups (
       id TEXT PRIMARY KEY,
       tenant_id TEXT NOT NULL,
@@ -78,7 +78,7 @@ function createTables(db: DB): void {
     );
   `);
 
-  db.executeSync(`
+  db.execSync(`
     CREATE TABLE IF NOT EXISTS modifiers (
       id TEXT PRIMARY KEY,
       tenant_id TEXT NOT NULL,
@@ -94,7 +94,7 @@ function createTables(db: DB): void {
     );
   `);
 
-  db.executeSync(`
+  db.execSync(`
     CREATE TABLE IF NOT EXISTS menu_item_modifier_groups (
       id TEXT PRIMARY KEY,
       tenant_id TEXT NOT NULL,
@@ -106,7 +106,7 @@ function createTables(db: DB): void {
     );
   `);
 
-  db.executeSync(`
+  db.execSync(`
     CREATE TABLE IF NOT EXISTS ingredients (
       id TEXT PRIMARY KEY,
       tenant_id TEXT NOT NULL,
@@ -122,7 +122,7 @@ function createTables(db: DB): void {
     );
   `);
 
-  db.executeSync(`
+  db.execSync(`
     CREATE TABLE IF NOT EXISTS recipe_ingredients (
       id TEXT PRIMARY KEY,
       tenant_id TEXT NOT NULL,
@@ -137,7 +137,7 @@ function createTables(db: DB): void {
     );
   `);
 
-  db.executeSync(`
+  db.execSync(`
     CREATE TABLE IF NOT EXISTS locations (
       id TEXT PRIMARY KEY,
       tenant_id TEXT NOT NULL,
@@ -157,7 +157,7 @@ function createTables(db: DB): void {
   `);
 
   // ── Shifts (LWW sync) ──
-  db.executeSync(`
+  db.execSync(`
     CREATE TABLE IF NOT EXISTS shifts (
       id TEXT PRIMARY KEY,
       tenant_id TEXT NOT NULL,
@@ -177,7 +177,7 @@ function createTables(db: DB): void {
   `);
 
   // ── Orders (append-only sync) ──
-  db.executeSync(`
+  db.execSync(`
     CREATE TABLE IF NOT EXISTS orders (
       id TEXT PRIMARY KEY,
       tenant_id TEXT NOT NULL,
@@ -209,7 +209,7 @@ function createTables(db: DB): void {
     );
   `);
 
-  db.executeSync(`
+  db.execSync(`
     CREATE TABLE IF NOT EXISTS order_items (
       id TEXT PRIMARY KEY,
       tenant_id TEXT NOT NULL,
@@ -229,7 +229,7 @@ function createTables(db: DB): void {
     );
   `);
 
-  db.executeSync(`
+  db.execSync(`
     CREATE TABLE IF NOT EXISTS order_item_modifiers (
       id TEXT PRIMARY KEY,
       tenant_id TEXT NOT NULL,
@@ -242,7 +242,7 @@ function createTables(db: DB): void {
     );
   `);
 
-  db.executeSync(`
+  db.execSync(`
     CREATE TABLE IF NOT EXISTS payments (
       id TEXT PRIMARY KEY,
       tenant_id TEXT NOT NULL,
@@ -262,7 +262,7 @@ function createTables(db: DB): void {
     );
   `);
 
-  db.executeSync(`
+  db.execSync(`
     CREATE TABLE IF NOT EXISTS order_tax_breakdown (
       id TEXT PRIMARY KEY,
       tenant_id TEXT NOT NULL,
@@ -277,7 +277,7 @@ function createTables(db: DB): void {
   `);
 
   // ── Sync infrastructure ──
-  db.executeSync(`
+  db.execSync(`
     CREATE TABLE IF NOT EXISTS change_log (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       table_name TEXT NOT NULL,
@@ -291,12 +291,12 @@ function createTables(db: DB): void {
     );
   `);
 
-  db.executeSync(`
+  db.execSync(`
     CREATE INDEX IF NOT EXISTS idx_change_log_synced
     ON change_log(synced, id);
   `);
 
-  db.executeSync(`
+  db.execSync(`
     CREATE TABLE IF NOT EXISTS sync_state (
       table_name TEXT PRIMARY KEY,
       last_pulled_hlc TEXT NOT NULL DEFAULT '0',
@@ -305,7 +305,7 @@ function createTables(db: DB): void {
     );
   `);
 
-  db.executeSync(`
+  db.execSync(`
     CREATE TABLE IF NOT EXISTS column_hlcs (
       table_name TEXT NOT NULL,
       record_id TEXT NOT NULL,
@@ -315,7 +315,7 @@ function createTables(db: DB): void {
     );
   `);
 
-  db.executeSync(`
+  db.execSync(`
     CREATE TABLE IF NOT EXISTS device_config (
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL
@@ -323,21 +323,21 @@ function createTables(db: DB): void {
   `);
 
   // ── Local order sequence ──
-  db.executeSync(`
+  db.execSync(`
     CREATE TABLE IF NOT EXISTS order_sequence (
       id INTEGER PRIMARY KEY CHECK (id = 1),
       next_number INTEGER NOT NULL DEFAULT 1
     );
   `);
 
-  db.executeSync(`
+  db.execSync(`
     INSERT OR IGNORE INTO order_sequence (id, next_number) VALUES (1, 1);
   `);
 }
 
 export function closeDatabase(): void {
   if (db) {
-    db.close();
+    db.closeSync();
     db = null;
   }
 }

@@ -1,6 +1,18 @@
 import * as SecureStore from "expo-secure-store";
+import Constants from "expo-constants";
 
-const API_URL = "http://localhost:3001";
+// In dev, use the same IP as the Expo dev server (so the phone can reach the Mac).
+// The debuggerHost is like "192.168.0.234:8081" — we extract just the IP.
+function getApiUrl(): string {
+  const debuggerHost = Constants.expoConfig?.hostUri ?? Constants.manifest2?.extra?.expoGo?.debuggerHost;
+  if (debuggerHost) {
+    const host = debuggerHost.split(":")[0];
+    return `http://${host}:3001`;
+  }
+  return "http://localhost:3001";
+}
+
+const API_URL = getApiUrl();
 
 function buildQuery(params: Record<string, string>): string {
   return Object.entries(params)
